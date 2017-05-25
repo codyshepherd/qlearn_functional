@@ -86,6 +86,7 @@ doesn't make any difference.
 >           | D
 >           | R
 >           | L
+>           | P
 >           deriving (Show, Eq)
 
 We want a nice way to visualize the board.
@@ -132,6 +133,7 @@ reward, so we will leave checking to another function.
 >                   D -> Rob (x-1, y)
 >                   R -> Rob (x, y+1)
 >                   L -> Rob (x, y-1)
+>                   P -> Rob (x, y)
 
 It would be nice to be able to see this happening on the board, so we will
 need to write a function to visualize the board.
