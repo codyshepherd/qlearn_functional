@@ -5,7 +5,9 @@ Q-Learning with Haskell
 > import Math.Geometry.Grid
 > import Math.Geometry.Grid.Square
 
-The Rob type is an instance of Rob's location on the board.
+The Rob type is an instance of Rob's location on the board. We would like to 
+be able to compare this location to a pair of Ints later on, so we will provide a couple
+of conversion functions.
 
 > data Rob = Rob (Int, Int)
 >               deriving (Show, Eq)
@@ -16,12 +18,24 @@ The Rob type is an instance of Rob's location on the board.
 > rsnd      :: Rob -> Int
 > rsnd (Rob (a, b)) = b
 
+> rToPair   :: Rob -> (Int, Int)
+> rToPair (Rob a) = a
+
 The first thing Rob has to do is move around a board. 
 It seems like we don't need to store all the empty locations... we can just
 track where there are cans. A can, like Rob, is defined by its location.
 
-A location will occur in the context of the +,+ quadrant of a cartesian plane,
-so, (x, y) where both are positive, x representing the horizontal and y the vertical.
+A location will be defined in its implementation as (a, b), where a represents the "row"
+or y-axis location, and b will represent the "column" or x-axis location. This is reversed
+from the format of cartesian coordinates because this version makes it much easier to 
+use in the context of lists of lists - a being the number of the outermost list, and b 
+being the offset within that list. 
+
+However, this format will behave as expected (as a cartesian pair) when visualized. I.e. specifying
+Rob's location at (0, 0) will put him at the bottom left corner of the grid, and moving him up will
+result in a location of (0, 1). This should turn out to not matter much in the actual execution of
+the q-learning algorithm, as it is primarily concerned with the "key" of each grid square rather 
+than its grid coordinates.
 
 > data Can = Can (Int, Int)
 >            deriving (Show, Eq)
@@ -31,6 +45,9 @@ so, (x, y) where both are positive, x representing the horizontal and y the vert
 
 > csnd          :: Can -> Int
 > csnd (Can (a, b)) = b
+
+> cToPair       :: Can -> (Int, Int)
+> cToPair (Can a) = a
 
 
  instance Functor Can where
@@ -99,3 +116,25 @@ representation of the grid for printing.
 >                      mapM putStrLn r
 >                      putStrLn ""
 >                      return ()
+
+
+The very first thing we need to work out is movement around the board.
+A movement is an action performed on Rob - none of the other pieces move.
+Rob's movement does not affect any of the state on the board other than 
+Rob.
+
+Checking whether a move is out of bounds would also require returning a
+reward, so we will leave checking to another function.
+
+> moveRob      :: Rob -> Dir -> Rob
+> moveRob (Rob (x, y)) d  = case d of
+>                   U -> Rob (x+1, y)
+>                   D -> Rob (x-1, y)
+>                   R -> Rob (x, y+1)
+>                   L -> Rob (x, y-1)
+
+It would be nice to be able to see this happening on the board, so we will
+need to write a function to visualize the board.
+
+> move          :: Dir -> Board -> Board
+> move dir (Board (dims, cans, rob)) = Board (dims, cans, (moveRob rob dir))
