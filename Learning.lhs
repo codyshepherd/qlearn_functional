@@ -19,14 +19,25 @@ information contained within it.
 >               | W 
 >               | Rc
 >               | Re
->               deriving (Eq, Show)
+>               deriving (Eq, Show, Ord)
 
-> data Key      = Key (State, State, State, State, State)
+> stateKey          :: [State] -> String
+> stateKey []       = []
+> stateKey (x:xs)   = let nx =  case x of
+>                                   E -> '_'
+>                                   C -> '.'
+>                                   W -> 'w'
+>                                   Rc -> '%'
+>                                   Re -> 'o'
+>                       in nx : stateKey xs
 
-> data Values = Values (Float, Float, Float, Float, Float)
->               deriving (Eq, Show)
+> newtype Key      = Key String
+>                       deriving (Eq, Show, Ord)
 
-> newtype Qmatrix = Qmatrix (Map State Values)
+> newtype Values    = Values [Float]
+>               deriving (Eq, Show, Ord)
+
+> newtype Qmatrix = Qmatrix (Map Key Values)
 >                      deriving (Eq, Show)
 
 Fundamentally, Q-Learning requires two parts: training and testing. These parts differ
