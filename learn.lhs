@@ -9,9 +9,15 @@ Rob.
 Checking whether a move is out of bounds would also require returning a
 reward, so we will leave checking to another function.
 
-> move      :: Rob -> Dir -> Rob
-> move (Rob (x, y)) d  = case d of
->                   U -> Rob (x, y+1)
->                   D -> Rob (x, y-1)
->                   R -> Rob (x+1, y)
->                   L -> Rob (x-1, y)
+> moveRob      :: Rob -> Dir -> Rob
+> moveRob (Rob (x, y)) d  = case d of
+>                   U -> Rob (x+1, y)
+>                   D -> Rob (x-1, y)
+>                   R -> Rob (x, y+1)
+>                   L -> Rob (x, y-1)
+
+It would be nice to be able to see this happening on the board, so we will
+need to write a function to visualize the board.
+
+> move          :: Dir -> Board -> Board
+> move dir (Board (dims, cans, rob)) = Board (dims, cans, (moveRob rob dir))
