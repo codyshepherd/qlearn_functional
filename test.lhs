@@ -1,4 +1,5 @@
 
+> module Main(main) where
 > import Board
 > import Learning
 > import qualified Data.Map as Map

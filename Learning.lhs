@@ -3,6 +3,7 @@ Cody Shepherd
 
 > module Learning where
 
+> import System.Random
 > import Board
 > import Data.Map (Map)
 
@@ -102,3 +103,66 @@ in that the q-matrix may be updated during training, but not during testing.
 trainStep
 
 testStep
+
+
+Training 
+    - Initialize Q(s,a) to all zeros
+    - Initialize s
+    - selection action a
+    - take action a and receive reward r
+    - observe new state s'
+    - Update Q(s, a) <- Q(s,a) + eta * (r + gamma*argmax(Q(s',a')) - Q(s,a))
+    - s <- s'
+
+Need to be able to select an action in a deterministic way, but also get a random action if
+we want.
+
+> action :: Int -> IO Dir
+> action n =  case n `mod` 6 of
+>                0 -> U
+>                1 -> D
+>                2 -> L
+>                3 -> R
+>                4 -> P
+>                5 -> do v <- RandomRIO(0,4)
+>                        action v
+
+Sometimes this action selection should be random. The chances of randomness should be 
+based on a probability.
+
+> isRandom :: Float -> IO Bool
+> isRandom p = do v <- RandomRIO(0.0, 1.0)
+>                 if v < p then True else False
+
+We also want a way to get an action we know or think is good.
+
+> bestAction :: String -> Qmatrix -> IO Dir
+> bestAction k q = let l = Map.lookup k q
+>                        in case l of
+>                            Just n -> action (maxI n)
+>                            Nothing -> action 5
+
+In order to perform a single step during training, we need to have the updated states of
+the Board and the Qtable; a single step potentially updates both, so it should return them,
+I suppose as a pair.
+
+This should probably be a Monad because it represents a "program" to be run on a set of 
+inputs.
+
+ instance Functor Trainer where
+   fmap    :: (a -> b) -> Trainer a -> Trainer b
+   fmap f T = 
+
+ data Trainer a = T (Qmatrix -> [(Board, Qmatrix)])
+
+We might need some global constants to control the behavior of our program and keep the number of
+copied parameters to a minimum.
+
+n_global = 5000
+m_global = 200
+eta = 0.2 :: Float
+gamma = 0.9 :: Float
+
+> train         :: Qmatrix -> Board -> Float -> IO (Qmatrix, Board)
+> train q b p    = do s <- observe b
+>                     a <- if isRandom p then action 5 else bestAction k q
