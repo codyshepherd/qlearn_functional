@@ -27,12 +27,15 @@ dims: dimensions of board (excluding wall border)
 p: % of cells with cans at start
 n: number of steps in episode
 q: zero-initialized Qmatrix
+i: episode number
+eps: initial epsilon
 
-> episode       :: (Int, Int) -> Double -> Int -> (Qmatrix, Int) -> IO (Qmatrix, Int)
-> episode dims p n (q, i)     = do  b <- randBoard dims p
->                                   (q', b') <- foldr1 (>=>) (replicate n train) (q,b)
->                                   --print ("episode" ++ show i)
->                                   return (q', i+1)
+> episode       :: (Int, Int) -> Double -> Int -> Double -> (Qmatrix, Int) -> IO (Qmatrix, Int)
+> episode dims p n eps (q, i)     = do  b <- randBoard dims p
+>                                       let eps' = if i `mod` 50 == 0 && eps > 0.1 then eps - 0.01 else eps
+>                                       (q', b') <- foldr1 (>=>) (replicate n (train eps')) (q,b)
+>                                       --print ("episode" ++ show i)
+>                                       return (q', i+1)
 
 To facilitate the above function we need to be able to randomly generate a 
 starting board
@@ -67,6 +70,12 @@ dims: dimensions of board (excluding wall border)
 
 
 
-> doTraining        :: (Int, Int) -> Double -> IO Qmatrix
-> doTraining dims p = do    (qfinal, i) <- foldr1 (>=>) (replicate n_episodes (episode dims p n_steps)) (newQTable,1)
->                           return qfinal
+> doTraining        :: (Int, Int) -> Double -> Double -> IO Qmatrix
+> doTraining dims p eps = do    (qfinal, i) <- foldr1 (>=>) (replicate n_episodes (episode dims p n_steps eps)) (newQTable,1)
+>                               return qfinal
+
+
+With training conquered, our next task is to conduct testing, wherein the robot makes a 
+guess but does not update its Q matrix.
+
+We will rely on the test function from Learning.lhs here.

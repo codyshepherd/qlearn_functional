@@ -162,7 +162,7 @@ pick up a can when none is present, and 5 points for running into a wall.
 Note that here we must make sure that if the robot chooses to move into a wall, it "bounces back,"
 i.e. b' is identical to b for starting board b.
 
-> move          :: Dir -> Board -> (Board, Float)
+> move          :: Dir -> Board -> (Board, Double)
 > move dir (Board (dims, cans, rob)) 
 >                                  | r' == r = case find (\c -> cToPair c == r) cans of
 >                                                   Just a -> (Board(dims, filter (\c -> cToPair c /= r) cans, rob), 10.0)
