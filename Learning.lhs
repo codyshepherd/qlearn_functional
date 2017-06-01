@@ -186,14 +186,14 @@ results in an easy way.
 > train         :: (Qmatrix, Board) -> IO (Qmatrix, Board)
 > train (q, b) = do           t <- isRandom eta
 >                             let s       = observe b
->                             showBoard b
+>                             --showBoard b
 >                             a <- if t then action 5 else bestAction s q
->                             print a
+>                             --print a
 >                             let (s', r) = move a b
 >                                 q'      = updateQ q s (observe s') a r
->                             print ("reward " ++ show r)
->                             print ("stateKey: " ++ show s)
->                             print (Map.lookup s q')
+>                             --print ("reward " ++ show r)
+>                             --print ("stateKey: " ++ show s)
+>                             --print (Map.lookup s q')
 >                             return (q', s')
 
 The Qmatrix must be updated according to the Q-Learning algorithm. A more detailed explanation of this algorithm,
@@ -207,7 +207,7 @@ and thus what is going on in this functio, will be provided in my paper.
 >                                                  qt = case snext of
 >                                                               Just z -> let newval = y + (eta * (r + gamma * (argmax (\x -> x-0.0) z) - y))
 >                                                                           in take (dirIndex a) z ++ [newval] ++ drop ((dirIndex a) + 1) z
->                                                               Nothing -> replicate (dirIndex a) 0.0 ++ [y] ++ replicate (4 - (dirIndex a)) 0.0
+>                                                               Nothing -> replicate (dirIndex a) 0.0 ++ [r] ++ replicate (4 - (dirIndex a)) 0.0
 >                                                  in Map.insert s qt q
 
 We also need a quick way to generate the very first, zero-initialized Qmatrix, based on combinations over the
