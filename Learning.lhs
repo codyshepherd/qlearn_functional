@@ -186,8 +186,9 @@ results in an easy way.
 > train         :: (Qmatrix, Board) -> IO (Qmatrix, Board)
 > train (q, b) = do           t <- isRandom eta
 >                             let s       = observe b
->                             showBoard b
+>                             --showBoard b
 >                             a <- if t then action 5 else bestAction s q
+>                             --print a
 >                             let (s', r) = move a b
 >                                 q'      = updateQ q s (observe s') a r
 >                             return (q', s')
