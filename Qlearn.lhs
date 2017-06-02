@@ -30,7 +30,7 @@ q: zero-initialized Qmatrix
 i: episode number
 eps: initial epsilon
 
-> episode       :: (Int, Int) -> Double -> Int -> Double -> (Qmatrix, Int) -> IO (Qmatrix, Int)
+> episode                         :: (Int, Int) -> Double -> Int -> Double -> (Qmatrix, Int) -> IO (Qmatrix, Int)
 > episode dims p n eps (q, i)     = do  b <- randBoard dims p
 >                                       let eps' = if i `mod` 50 == 0 && eps > 0.1 then eps - 0.01 else eps
 >                                       (q', b') <- foldr1 (>=>) (replicate n (train eps')) (q,b)
@@ -70,7 +70,7 @@ dims: dimensions of board (excluding wall border)
 
 
 
-> doTraining        :: (Int, Int) -> Double -> Double -> IO Qmatrix
+> doTraining            :: (Int, Int) -> Double -> Double -> IO Qmatrix
 > doTraining dims p eps = do    (qfinal, i) <- foldr1 (>=>) (replicate n_episodes (episode dims p n_steps eps)) (newQTable,1)
 >                               return qfinal
 
@@ -79,3 +79,14 @@ With training conquered, our next task is to conduct testing, wherein the robot 
 guess but does not update its Q matrix.
 
 We will rely on the test function from Learning.lhs here.
+
+> testEpisode                       :: (Int, Int) -> Double -> Int -> Double -> IO (Qmatrix, Int)
+> testEpisode dims p n eps (q, i)   = do    b <- randBoard dims p
+>                                       (q', b', r') <- foldr1 (>=>) (replicate n (test eps)) (q,b,1)
+>                                       --print ("episode" ++ show i)
+>                                       return (q', i+1)
+>                                           
+
+> doTesting             :: (Int, Int) -> Double -> Double -> Qmatrix -> IO (Qmatrix, Double)
+> doTesting dims p eps q  = do  (q', r) <- foldr1 (>=>) (replicate n_episodes (testEpisode dims p n_steps eps)) (q, 1)
+>                               return q'
