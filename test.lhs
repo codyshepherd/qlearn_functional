@@ -24,6 +24,9 @@ but maybe that's not necessary?
 
 > average xs = realToFrac (sum xs) / genericLength xs
 
+> every n [] = []
+> every n xs = let (y:ys) = drop (n-1) xs in y : every n ys
+
 > main = do putStrLn ("Training...")
 >           (qfinal, rwds) <- doTraining (8,8) 0.5 1.0
 >           putStrLn ("Training finished.\nResulting qmatrix:")
@@ -32,9 +35,10 @@ but maybe that's not necessary?
 >           (q', rs) <- doTesting (8,8) 0.5 0.1 qfinal
 >           putStrLn ("Testing finished.\nAverage rewards over episodes:")
 >           print $ average rs
+>           let epis = every 100 rwds
 >           toFile def "rewards_eps0_1.png" $ do
 >               layout_title .= "Rewards over episodes"
->               plot (line "eps=0.1" [zipInd rs])
+>               plot (line "eps=0.1" [zipInd epis])
 >               return ()
 
 
