@@ -7,6 +7,8 @@ Cody Shepherd
 > import Data.List
 > import Control.Monad
 > import System.Random
+> import Data.Map (Map)
+> import qualified Data.Map as Map
 
 The key piece in this project that eluded my during my last attempt was 
 being able to "loop" a given number of times, repeating a computation and
@@ -22,20 +24,6 @@ The Kleisli composition operator is going to facilitate this for us.
 > n_steps = 200
 > n_episodes = 5000
 
-i: which episode this is
-dims: dimensions of board (excluding wall border)
-p: % of cells with cans at start
-n: number of steps in episode
-q: zero-initialized Qmatrix
-i: episode number
-eps: initial epsilon
-
-> episode                         :: (Int, Int) -> Double -> Int -> Double -> (Qmatrix, Int) -> IO (Qmatrix, Int)
-> episode dims p n eps (q, i)     = do  b <- randBoard dims p
->                                       let eps' = if i `mod` 50 == 0 && eps > 0.1 then eps - 0.01 else eps
->                                       (q', b') <- foldr1 (>=>) (replicate n (train eps')) (q,b)
->                                       --print ("episode" ++ show i)
->                                       return (q', i+1)
 
 To facilitate the above function we need to be able to randomly generate a 
 starting board
@@ -69,10 +57,25 @@ dims: dimensions of board (excluding wall border)
 >                           return r
 
 
+i: which episode this is
+dims: dimensions of board (excluding wall border)
+p: % of cells with cans at start
+n: number of steps in episode
+q: zero-initialized Qmatrix
+i: episode number
+eps: initial epsilon
 
-> doTraining            :: (Int, Int) -> Double -> Double -> IO Qmatrix
-> doTraining dims p eps = do    (qfinal, i) <- foldr1 (>=>) (replicate n_episodes (episode dims p n_steps eps)) (newQTable,1)
->                               return qfinal
+> episode                         :: (Int, Int) -> Double -> Int -> Double -> (Qmatrix, Int, [Double]) -> IO (Qmatrix, Int, [Double])
+> episode dims p n eps (q, i, r)  = do  b <- randBoard dims p
+>                                       let eps' = if i `mod` 50 == 0 && eps > 0.1 then eps - 0.01 else eps
+>                                       (q', b') <- foldr1 (>=>) (replicate n (train eps')) (q,b)
+>                                       --print ("episode" ++ show i)
+>                                       let r' = sum $ map sum (Map.elems q')
+>                                       return (q', i+1, r':r)
+
+> doTraining            :: (Int, Int) -> Double -> Double -> IO (Qmatrix, [Double])
+> doTraining dims p eps = do    (qfinal, i, rs) <- foldr1 (>=>) (replicate n_episodes (episode dims p n_steps eps)) (newQTable,1, [0])
+>                               return (qfinal, reverse rs)
 
 
 With training conquered, our next task is to conduct testing, wherein the robot makes a 

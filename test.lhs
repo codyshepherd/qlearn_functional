@@ -4,6 +4,7 @@
 > import Learning
 > import Qlearn
 > import qualified Data.Map as Map
+> import Data.List
 > import Graphics.Rendering.Chart.Easy
 > import Graphics.Rendering.Chart.Backend.Cairo
 
@@ -21,14 +22,16 @@ but maybe that's not necessary?
 > zipInd    :: [Double] -> [(Int, Double)]
 > zipInd rs = [0..] `zip` rs
 
+> average xs = realToFrac (sum xs) / genericLength xs
+
 > main = do putStrLn ("Training...")
->           qfinal <- doTraining (8,8) 0.5 1.0
->           putStrLn ("Training finished.Resulting qmatrix:")
+>           (qfinal, rwds) <- doTraining (8,8) 0.5 1.0
+>           putStrLn ("Training finished.\nResulting qmatrix:")
 >           print qfinal
 >           putStrLn ("Testing...")
 >           (q', rs) <- doTesting (8,8) 0.5 0.1 qfinal
->           print ("Testing finished.\nRewards over episodes:")
->           print rs
+>           putStrLn ("Testing finished.\nAverage rewards over episodes:")
+>           print $ average rs
 >           toFile def "rewards_eps0_1.png" $ do
 >               layout_title .= "Rewards over episodes"
 >               plot (line "eps=0.1" [zipInd rs])
