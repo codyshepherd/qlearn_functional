@@ -2,7 +2,10 @@
 > module Main(main) where
 > import Board
 > import Learning
+> import Qlearn
 > import qualified Data.Map as Map
+> import Graphics.Rendering.Chart.Easy
+> import Graphics.Rendering.Chart.Backend.Cairo
 
 
 What I'd like to do here is set up my initial board, set up my zero-initialized Qmatrix, 
@@ -15,10 +18,27 @@ Currently this does not work because train requires a (Qmatrix, Board) pair as i
 resort to converting the train computation to a Monad and writing a custom iterateM function,
 but maybe that's not necessary?
 
-> main = do let b = Board ((8,8), [Can (2,3), Can (3,4), Can (3, 6)], Rob(3, 3))
->               q = newQTable
->               l = take 10 $ iterate train (q, b)
->           return ()
+> zipInd    :: [Double] -> [(Int, Double)]
+> zipInd rs = [0..] `zip` rs
+
+> main = do putStrLn ("Training...")
+>           qfinal <- doTraining (8,8) 0.5 1.0
+>           putStrLn ("Training finished.Resulting qmatrix:")
+>           print qfinal
+>           putStrLn ("Testing...")
+>           (q', rs) <- doTesting (8,8) 0.5 0.1 qfinal
+>           print ("Testing finished.\nRewards over episodes:")
+>           print rs
+>           toFile def "rewards_eps0_1.png" $ do
+>               layout_title .= "Rewards over episodes"
+>               plot (line "eps=0.1" [zipInd rs])
+>               return ()
+
+
+            let b = Board ((8,8), [Can (2,3), Can (3,4), Can (3, 6)], Rob(3, 3))
+               q = newQTable
+               l = take 10 $ iterate train (q, b)
+           return ()
 
 
 

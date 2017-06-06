@@ -80,13 +80,13 @@ guess but does not update its Q matrix.
 
 We will rely on the test function from Learning.lhs here.
 
-> testEpisode                       :: (Int, Int) -> Double -> Int -> Double -> IO (Qmatrix, Int)
-> testEpisode dims p n eps (q, i)   = do    b <- randBoard dims p
->                                       (q', b', r') <- foldr1 (>=>) (replicate n (test eps)) (q,b,1)
->                                       --print ("episode" ++ show i)
->                                       return (q', i+1)
+> testEpisode                       :: (Int, Int) -> Double -> Int -> Double -> (Qmatrix, [Double]) -> IO (Qmatrix, [Double])
+> testEpisode dims p n eps (q, r)   = do    b <- randBoard dims p
+>                                           (q', b', r') <- foldr1 (>=>) (replicate n (test eps)) (q,b,0.0)
+>                                           --print ("testEpisode" ++ show i)
+>                                           return (q', (r':r))
 >                                           
 
-> doTesting             :: (Int, Int) -> Double -> Double -> Qmatrix -> IO (Qmatrix, Double)
-> doTesting dims p eps q  = do  (q', r) <- foldr1 (>=>) (replicate n_episodes (testEpisode dims p n_steps eps)) (q, 1)
->                               return q'
+> doTesting             :: (Int, Int) -> Double -> Double -> Qmatrix -> IO (Qmatrix, [Double])
+> doTesting dims p eps q  = do  (q', r) <- foldr1 (>=>) (replicate n_episodes (testEpisode dims p n_steps eps)) (q, [0.0])
+>                               return (q', reverse r)
