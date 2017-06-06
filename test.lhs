@@ -24,8 +24,12 @@ but maybe that's not necessary?
 
 > average xs = realToFrac (sum xs) / genericLength xs
 
-> every n [] = []
-> every n xs = let (y:ys) = drop (n-1) xs in y : every n ys
+ every n [] = []
+ every n xs = let (y:ys) = drop (n-1) xs in y : every n ys
+
+> every n xs = case drop (n-1) xs of
+>               (y:ys) -> y : every n ys
+>               [] -> []
 
 > main = do putStrLn ("Training...")
 >           (qfinal, rwds) <- doTraining (8,8) 0.5 1.0
