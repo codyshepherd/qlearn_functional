@@ -1,0 +1,182 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{mathtools, qtree}
+\usepackage{amssymb,amsmath, fancyhdr}
+\usepackage{tikz}
+\usetikzlibrary{automata,positioning}
+\usepackage{listings}
+\pagestyle{fancy}
+\title{Term Project: Q-Learning}
+
+\date{07 June 2017}
+\author{Cody Shepherd}
+
+\lhead{Shepherd}
+\rhead{Q-Learning}
+
+\begin{document}
+\maketitle
+
+\normalsize
+
+	\section{Introduction}
+	
+	\par The goal of my project was to implement and evaluate a working Q-Learning algorithm using Haskell. Q-Learning is a reinforcement algorithm that uses rewards to learn a mapping from state-action pairs to values. In the case of my project, the Q-Learning problem was framed in terms of an agent, or ``robot", moving around a grid picking up objects. The goal of the agent was to learn a mapping that would allow it to pick up the most objects during testing.
+	\par One of the major components of this project involved improving on an earlier attempt at implementing the Q-Learning algorithm in Haskell. My earlier attempt attempted to use recursion to perform repeated actions during training and testing, and had problems with stack overflows. My implementation for this project made use of monads and the Kleisli composition operator instead of attempting explicit recursion, and was met with success.
+	\par The other interesting aspect of my project involves a performance comparison between a (correct) implementation of the algorithm I wrote in Python, and the current Haskell version. Time-based testing indicates that the Haskell version outperforms the Python version in terms of execution time.
+	
+	
+	\section{Related Work}
+	
+	\par The concept of this project came out of the Machine Learning course taught by Professor Melanie Mitchell. I took that course in winter quarter 2017, and my first attempt at the Q-Learning algorithm I wrote in Haskell (which I had partially learned the quarter before that in CS 320). Because of problems with that initial implementation, I ended up re-writing it in Python in order to have a working program to turn in. 
+	
+		\subsection{Q-Learning}\label{beefcake}
+		
+		\par Q-Learning is a reinforcement algorithm that trains an agent to learn to perform tasks in an environment \cite{RL}. In contrast to a static policy (e.g. state machine), which maps states to actions, the q-learning algorithm is concerned with approximating an optimal policy by mapping state-action pairs $(s, a)$ to real values. At a given timestep, the agent only has access to its current observable state together with a list of available actions from the given state. It must learn the best policy $\pi : S \rightarrow A$ to maximize some reward function $\delta : S \times A \rightarrow \mathbf{R}$.
+		\par The strategy taken by Q-Learning is to approximate $\pi$ via a Q-function $Q(s,a)$, which not only maps state-action pairs to values, but generates those values from the assumption that the agent will follow the best policy into the future.
+		\par The Q-function is formally expressed by $Q(s,a) = r(s,a) + \gamma \text{max}_{a^\prime} [Q(\delta(s,a), a^\prime)]$.
+		\par Here, $r(s,a)$ represents the reward acquired from taking action $a$ at state $s$, $\text{max}_{a^\prime}$ represents the reward taken from the best possible action $a^\prime$ at the state $s^\prime$ produced by action $a$, and $\gamma$ represents a discount factor that allows the system to value future rewards lower than immediate rewards. The entire expression amounts to ``taking action $a$ at state $s$ gives some reward plus the discounted reward from the best future action." This gives the algorithm the ability to ``think ahead" and consider the long-term as well as the short term. We also include a learning rate, $\eta$, applied to the right side of the equation, when training. $\eta$ is the ``learning rate," i.e. the significance to which the algorithm gives any one ``lesson."
+		\par In practice, the Q-function can be represented in several ways. Scientists and engineers at Google used a deep neural network for learning and representing the Q-function in their AlphaGo player \cite{alphago}. For all of the programs involved in this project, I have used a Q Table (also called a Q Matrix). One might think of the Q Table as 2-D array of reward values (Floats or Doubles), where the row indices are governed by a given state -- the five observable cells from a given grid position (north, south, east, west, and ``here"; diagonals are ignored) -- and the column indices governed by the five actions possible from an arbitrary state (move up, down, left, right, or attempt a pickup). In reality, I implemented the Q Table, in both the Haskell and Python versions, using an associative Map, but the array analogy is perhaps in nicer agreement with theoretical details.
+		\par The Q-Learning algorithm is ultimately divided into two major phases: training and testing. The algorithm learns the Q-function during training via the following algorithm \cite{RL}:
+		
+		\begin{itemize}
+			\item Observe state $s$.
+			\item Select action $a$.
+			\item Take action $a$ and receive reward $r$.
+			\item Observe new state $s^\prime$.
+			\item Update the Q Table; $Q(s,a) \Leftarrow Q(s,a) + \eta(r + \gamma \text{max}_{a^\prime}(Q(s^\prime, a^\prime)) - Q(s,a))$.
+			\item Update $s \Leftarrow s^\prime$.
+		\end{itemize}
+		
+		\par Action selection is governed by an ``$\epsilon$ -greedy" strategy, which seeks to strike a balance between exploration and exploitation. At the start of training, we initialize the parameter $\epsilon$ to 1. During action selection, the algorithm selects an action based on the probability of $\epsilon$. Therefore, initially every action is random -- exploration is maximized. The $\epsilon$ parameter is then ``annealed" over the training episodes: that is, every 50 episodes it is decremented by 0.01 until its value is 0.1. This means that at the other end, every 10th action (on average) taken by the fully trained algorithm will be random -- exploitation of the learned policy is favored over exploration, but exploration is never fully eliminated. As we will see below, this can sometimes allow the algorithm to break out of a bad policy. 
+		\par Training is divided into steps and episodes. A single loop through the above algorithm represents a step; an episode consists of 200 steps, starting from a random location in a randomly-initialized board. During training, the algorithm runs through 5,000 episodes; while the boards are randomly reinitialized every episode, the Q Table is maintained from episode to episode, and ultimately passed out at the end of training for use during testing.
+		\par For the purposes of this project, all starting boards have objects (``cans") in approximately 50\% of cells in an 8x8 board. Technically, the boards are all 10x10, with ``walls" on the outermost layers.
+		\par During training, we gather metrics on the Q Table after each episode. Specifically, we are interested in the sum total reward stored in the Q Table after each episode. This allows us to visualize and understand the rate at which the algorithm learns, and its behavior during its attempt to maximize reward.
+		\par The goal of testing is to acquire metrics used to evaluate the performance of the trained policy. The algorithm does not update its Q Table during testing; once training is done, the Q Table is static, although it still is passed along from testing episode to testing episode. Testing also runs 5,000 episodes of 200 steps each, randomly reinitializing the board state and agent location at the beginning of each episode. Testing is primarily concerned with reward acquired during each episode. There are many different ways to acquire and sift this and other types of data; for the purposes of this project, we collect the sum of rewards received for each episode during testing, then compute the average over the sums at the very end to evaluate the learned model.
+		\par For a project of larger scope, it would have been interesting to instrument and compute statistics such as precision and recall, F-Score, or harmonic mean of rewards. Average reward over episodes only gives a very general basis for comparison between two models. Further metrics would allow us a more fine-grained understanding of where and why models performed as they did.
+		\par In all implementations of training discussed in this project, the algorithm received a reward of 10 for a successful pickup of a can, a -5 penalty for colliding with a wall, a -1 penalty for attempting a pickup where there was no can, and no reward otherwise.
+	
+		\subsection{First Attempt}
+		
+		\par The initial design for my program was in some ways similar to the design for this project. I created alternative types for grid cells and for actions:\\
+		
+		\begin{lstlisting}[language=Haskell]
+data Cell = Empty | Wall | Can | ERob | CRob deriving (Show, Eq)
+
+data Act = U | D | L | R | P deriving (Show, Eq)
+		\end{lstlisting}\ \\
+		
+		 \noindent Not unlike the implementation of the Dir type in my current program:\\
+		
+		\begin{lstlisting}[language=Haskell]
+data Dir =  U
+	 | D
+	 | R
+	 | L
+	 | P
+	 deriving (Show, Eq, Enum, Ord)
+		\end{lstlisting}\ \\
+		
+		\par During my first attempt, I tried to store the grid and a given robot state as heavily parameterized types. In retrospect, I was trying to force an imperative ``struct" style that ended up being very awkward to handle:\\
+		\begin{lstlisting}[language=Haskell]
+data Grid = Grid{ cells :: [[Cell]]
+	,   loc     :: (Int, Int)
+	,   reward  :: Float
+	,   step    :: Int
+	,   qtable  :: Map String [Float]} deriving (Show, Eq)
+
+data State = State{ north :: Cell
+                  , south :: Cell
+                  , east  :: Cell
+                  , west  :: Cell
+                  , here  :: Cell
+                  , key   :: String} deriving (Show, Eq)
+
+		\end{lstlisting}\ \\
+		
+		\par The other major mistake in my old program was my attempt to use explicit recursion to perform looping over steps and episodes. I knew that a traditional use of the stack to do this would not be sufficient, that it would blow up at some point, but I was also aware of Haskell's capability to optimize use of the stack out of functions utilizing tail recursion -- my first program was based around the gamble over whether or not I could achieve tail recursion, and/or use it effectively.
+		\par Here we have an example from my first program that attempts to execute many training episodes using this explicit recursion:
+		
+		\begin{lstlisting}[language=Haskell]
+		
+execEpisode :: [Act] -> [Bool] -> Int -> Grid -> Grid
+execEpisode rands isRands i grd = let s = getState grd
+	act = getNewAction rands isRands grd
+	grd' = move act grd
+	s' = getState grd'
+		in if i == m_global
+			then learn s s' act grd'
+			else execEpisode rands isRands (i+1) 
+				(learn s s' act grd')
+
+		\end{lstlisting}\ \\
+		
+		\par Part of the problem here (I think) is lazy evaluation of all the parameters being passed into the recursive call. It may be that forcing these evaluations prior to entering/evaluating the next call would have obviated some of the disaster that I experienced (in the form of stack overflow). It could also be that this function is not truly tail recursive, although I cannot see where. Furthermore, this is not the only function in the program designed this way, so it may not be the culprit. 
+		\par My lack of understanding of IO and Monads in general prevented me from wanting to spend a lot of time working up tests last quarter, and I decided that the best use of my time would instead be to implement the program in a language I already knew.
+		
+		\subsection{Python Version}
+		
+		\par The working program that I eventually wrote in Python took an object-oriented approach. It implemented a class each for a grid cell, the grid/board itself, the Q Table, and the algorithm manager. A cell maintained its status, which of course could be updated in an imperative manner. The board object instantiated the grid explicitly as a 2-D array of cells and maintained state used for bookeeping and tracking of objects on the grid. The Q Table object acted as a domain-specific interface to a Python dict where the pair-value mappings were kept. And the algorithm manager held state and implemented the methods necessary for carrying out the algorithm defined in section \ref{beefcake}.
+	
+	\section{Project Design \& Implementation}
+	
+		\subsection{Board Representation}
+		
+		\par My current program diverges from both the previous Haskell attempt and the working Python program in important ways, but it also borrows a fair amount from both prior versions.
+		\par Instead of explicitly representing the board environment as the grid defined by the robot problem description, I chose to track the can locations (as a list of Can types), the robot's location (as a single Rob type), and the dimensions of the grid (as a tuple of Ints) separately. Whether this saves space seems debatable. What it allowed me to do was throw away the explicit Cell object from prior versions, and depending on language implementation and internal object state, the amount of memory required for a full 2-D array or list could be non-trivial. 
+		\par Performance-wise this also seems like a debatable trade-off. One advantage to not having Cell objects is not incurring the time required for instantiating each of these memory objects. However, in an imperative program, this instantiation need happen only once per episode; so saving on a constant-time operation is probably not that big of a get. We also lose the constant-time array access when observing state or checking moves. However, for a grid of small size, because we know that only around half of the cells will have Cans on them, searching cans is a relatively trivial operation -- although it is technically linear WRT board size, with the board size used in this project it might as well be constant time. 
+		\par An additional advantage involves the functional paradigm: if we were to track every cell in the grid, we would be required to regularly rebuild the grid as cans were picked up. Because the functional paradigm prevents us from simply updating the state of a cell, heavy list processing would be involved in swapping a cell containing a can out for an empty cell. Likewise for whenever the robot moved from one cell to another. Instead, with the new implementation, when the robot moves we can simply replace the Robot parameter in the board -- a constant time operation -- or, when a can is picked up, cut an item out of the cans list -- a linear time operation for which the language is well-suited.
+		\par Although for an imperative language, a 2-D array seems like a great way to go, in this case it appears to be a comparison between ``apples and oranges." Design choices appropriate for one do not necessarily carry over to the other.
+			\par Imperative to the training and testing algorithm described in section \ref{beefcake} are randomized board states and robot locations. This was one of the major challenges during my first attempt at writing this program in Haskell -- it had not occurred to me that random number generation would violate the assumptions of purity of some standard function. IO and Monads in general were poorly-understood concepts to me at the time, and I believe not having a solid understanding of them is what ultimately prevented me from getting the program working the first time.
+		\par My new design choices about board representation also helped me here, however. Instead of having to decide for each cell whether it should be empty or have a can on it, or whether the robot should start there, I could instead simply decide what percentage of the total cells should have cans, and generate a list of cans by generating random pairs within some constrained range. This ended up allowing me to isolate IO behavior much more easily.
+
+		\subsection{Learning}
+		
+		\par For observing its state, the agent needs a way of differentiating the condition of one state from that of another. For this, my solution was very similar to both prior versions: having some notion of the contents of a cell, described by an alternate type (the State type in the code). Furthermore, for quick storage and retrieval of a given state in the Q Table, we need some way of generating a unique "key" from an observation. My choice for this also followed previous versions: a length-5 text string, generated programmatically, representing each possible observable state.
+		\par Action selection was governed by the $\epsilon$-greedy policy -- first generating a random number to assert randomness or informed selection, and then selecting an action based on the results. Selecting a random action was accomplished by yet another random number generation. Selecting the best action required a lookup of the current state from the Q Table and determining which action ``column" in the table held the highest value. 
+		\par A training step in my program simply transforms one Q Table, Board pair into another via a move action and its resulting reward computation. Repetition of this process over 1 million steps (5,000 episodes of 200 steps each) incrementally fills out the Q Table and models a ``best" heuristic for the agent's behavior on the grid.
+		\par The function updating the Q Table was the one most prone to error. It required ``unpacking" two Maybe types from Map lookups, and constructing new lists of values from the Q function to replace the original lookup value. Handling the possibility of ``bad lookups" perhaps should not have been strictly necessary, given a sufficiently correct Q Table build algorithm, but seemed prudent nevertheless.
+		\par The Q Table build function -- \texttt{newQTable} -- built a blank Q Table by filling an associative map with strings representing all possible combinations of state values. This process produced state keys that would never actually be seen in practice, such as state strings containing three or more walls, but the amount of superfluous memory wasted by these results was outweighed by the ease of writing and verifying the process.
+		\par Executing a test step ended up being very similar to executing a training step, with the major difference being treatment of the Q Table. The Q Table is updated each training step, but remains static throughout testing. The function \texttt{test} still takes and produces a QTable, Board, Double triple, however, because it must be able alter the \textit{board} and pass everything on to the next test step when composed with the Kleisli operator. The Double value taken and produced by the \texttt{test} function represents the cumulative reward obtained throughout a test episode. 
+		
+		\subsection{Executing the Algorithm}
+		
+		\par Having training and test steps working is all well and good, but ultimately not enough. This was the point at which I became stuck during my first attempt at a Haskell program. Specifically, the challenge was how best to accumulate or capture the updated board and Q Table from step to step, passing the output of one step into the next in an efficient way. I was eager to stay away from explicit recursion, as it had landed me in a poor situation during my first attempt.
+		\par The answer ended up being the Kleisli Composition operator -- \texttt{(>=>)} -- from the Control.Monad library \cite{kleisli}. \\
+		
+		\begin{lstlisting}
+(>=>) :: Monad m => (a -> m b) -> (b -> m c) -> a -> m c
+(m >=> n) x = do
+	y <- m x
+	n y
+		\end{lstlisting}\ \\
+		
+		This operator takes the monadic output from one function and feeds it into the next as a non-monad, returning a function from the input of the first to the output of the second. The behavior of this operator is associative.
+		\par It turned out that this was exactly the operator I needed to get my program working. My episode functions made use of it by first generating lists of \texttt{train} or \texttt{test} functions, partially applied to their configuration/control arguments, and then folding the Kleisli operator over the list, beginning with an initial board and Q Table pair.
+		
+		\subsection{Instrumentation}
+		
+
+		
+			
+	\section{Testing \& Results}
+	
+	\section{Reflections}
+
+	\pagebreak
+	\begin{thebibliography}{9}
+		\bibitem{RL}
+		Melanie  Mitchell.
+		\textit{Reinforcement Learning}.
+		http://web.cecs.pdx.edu/~mm/MachineLearningWinter2017/RL.pdf
+		\bibitem{alphago}
+		Silver, D., A. Huang, Aja, C. Maddison, A. Guez, L. Sifre, G. van den Driessche, J. Schrittwieser, I. Antonoglou, V. Panneershelvam, M. Lanctot, S. Dieleman, D. Grewe, J. Nham, N. Kalchbrenner, I. Sutskever, T. Lillicrap, M. Leach, K. Kavukcuoglu, T. Graepel, D. Hassabis. 2016. "Mastering the Game of Go with Deep Neural Networks and Tree Search". Nature 529 (28 Jan): 484--503.
+		\bibitem{kleisli}
+		Monad laws.
+		https://wiki.haskell.org/Monad\_laws
+	\end{thebibliography}
+	
+	
+            
+            
+\end{document}
