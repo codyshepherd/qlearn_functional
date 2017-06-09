@@ -14,7 +14,17 @@
 \lhead{Shepherd}
 \rhead{Q-Learning}
 
+\lstset{
+    keywordstyle=\color{blue}
+  , basicstyle=\ttfamily
+  , commentstyle={}
+  , columns=flexible
+  , numbers=left
+  , showstringspaces=false
+  }
+
 \begin{document}
+\linespread{1.25}
 \maketitle
 
 \normalsize
@@ -36,8 +46,8 @@
 		\par The strategy taken by Q-Learning is to approximate $\pi$ via a Q-function $Q(s,a)$, which not only maps state-action pairs to values, but generates those values from the assumption that the agent will follow the best policy into the future.
 		\par The Q-function is formally expressed by $Q(s,a) = r(s,a) + \gamma \text{max}_{a^\prime} [Q(\delta(s,a), a^\prime)]$.
 		\par Here, $r(s,a)$ represents the reward acquired from taking action $a$ at state $s$, $\text{max}_{a^\prime}$ represents the reward taken from the best possible action $a^\prime$ at the state $s^\prime$ produced by action $a$, and $\gamma$ represents a discount factor that allows the system to value future rewards lower than immediate rewards. The entire expression amounts to ``taking action $a$ at state $s$ gives some reward plus the discounted reward from the best future action." This gives the algorithm the ability to ``think ahead" and consider the long-term as well as the short term. We also include a learning rate, $\eta$, applied to the right side of the equation, when training. $\eta$ is the ``learning rate," i.e. the significance to which the algorithm gives any one ``lesson."
-		\par In practice, the Q-function can be represented in several ways. Scientists and engineers at Google used a deep neural network for learning and representing the Q-function in their AlphaGo player \cite{alphago}. For all of the programs involved in this project, I have used a Q Table (also called a Q Matrix). One might think of the Q Table as 2-D array of reward values (Floats or Doubles), where the row indices are governed by a given state -- the five observable cells from a given grid position (north, south, east, west, and ``here"; diagonals are ignored) -- and the column indices governed by the five actions possible from an arbitrary state (move up, down, left, right, or attempt a pickup). In reality, I implemented the Q Table, in both the Haskell and Python versions, using an associative Map, but the array analogy is perhaps in nicer agreement with theoretical details.
-		\par The Q-Learning algorithm is ultimately divided into two major phases: training and testing. The algorithm learns the Q-function during training via the following algorithm \cite{RL}:
+		\par In practice, the Q-function can be represented in several ways. Scientists and engineers at Google used a deep neural network for learning and representing the Q-function in their AlphaGo player \cite{alphago}. For all of the programs involved in this project, I have used a Q Table (also called a Q Matrix). One might think of the Q Table as 2-D array of reward values (Floats or Doubles), where the row indices are governed by a given state -- the five observable cells from a given grid position (north, south, east, west, and ``here"; diagonals are ignored) -- and the column indices governed by the five actions possible from an arbitrary state (move up, down, left, right, or attempt a pickup). In reality, I implemented the Q Table, in both the Haskell and Python versions, using an associative Map, but the array analogy is perhaps in nicer agreement with the theoretical details of Q-Learning.
+		\par The Q-Learning algorithm, and indeed much of machine learning, is ultimately divided into two major phases: training and testing. The algorithm learns the Q-function during training via the following algorithm \cite{RL}:
 		
 		\begin{itemize}
 			\item Observe state $s$.
@@ -60,7 +70,7 @@
 		
 		\par The initial design for my program was in some ways similar to the design for this project. I created alternative types for grid cells and for actions:\\
 		
-		\begin{lstlisting}[language=Haskell]
+		\begin{lstlisting}[language=Haskell,numbers=none]
 data Cell = Empty | Wall | Can | ERob | CRob deriving (Show, Eq)
 
 data Act = U | D | L | R | P deriving (Show, Eq)
@@ -68,7 +78,7 @@ data Act = U | D | L | R | P deriving (Show, Eq)
 		
 		 \noindent Not unlike the implementation of the Dir type in my current program:\\
 		
-		\begin{lstlisting}[language=Haskell]
+		\begin{lstlisting}[language=Haskell,numbers=none]
 data Dir =  U
 	 | D
 	 | R
@@ -78,7 +88,7 @@ data Dir =  U
 		\end{lstlisting}\ \\
 		
 		\par During my first attempt, I tried to store the grid and a given robot state as heavily parameterized types. In retrospect, I was trying to force an imperative ``struct" style that ended up being very awkward to handle:\\
-		\begin{lstlisting}[language=Haskell]
+		\begin{lstlisting}[language=Haskell,numbers=none]
 data Grid = Grid{ cells :: [[Cell]]
 	,   loc     :: (Int, Int)
 	,   reward  :: Float
@@ -97,7 +107,7 @@ data State = State{ north :: Cell
 		\par The other major mistake in my old program was my attempt to use explicit recursion to perform looping over steps and episodes. I knew that a traditional use of the stack to do this would not be sufficient, that it would blow up at some point, but I was also aware of Haskell's capability to optimize use of the stack out of functions utilizing tail recursion -- my first program was based around the gamble over whether or not I could achieve tail recursion, and/or use it effectively.
 		\par Here we have an example from my first program that attempts to execute many training episodes using this explicit recursion:
 		
-		\begin{lstlisting}[language=Haskell]
+		\begin{lstlisting}[language=Haskell,numbers=none]
 		
 execEpisode :: [Act] -> [Bool] -> Int -> Grid -> Grid
 execEpisode rands isRands i grd = let s = getState grd
@@ -144,7 +154,7 @@ execEpisode rands isRands i grd = let s = getState grd
 		\par Having training and test steps working is all well and good, but ultimately not enough. This was the point at which I became stuck during my first attempt at a Haskell program. Specifically, the challenge was how best to accumulate or capture the updated board and Q Table from step to step, passing the output of one step into the next in an efficient way. I was eager to stay away from explicit recursion, as it had landed me in a poor situation during my first attempt.
 		\par The answer ended up being the Kleisli Composition operator -- \texttt{(>=>)} -- from the Control.Monad library \cite{kleisli}. \\
 		
-		\begin{lstlisting}
+		\begin{lstlisting}[language=Haskell,numbers=none]
 (>=>) :: Monad m => (a -> m b) -> (b -> m c) -> a -> m c
 (m >=> n) x = do
 	y <- m x
@@ -152,16 +162,40 @@ execEpisode rands isRands i grd = let s = getState grd
 		\end{lstlisting}\ \\
 		
 		This operator takes the monadic output from one function and feeds it into the next as a non-monad, returning a function from the input of the first to the output of the second. The behavior of this operator is associative.
-		\par It turned out that this was exactly the operator I needed to get my program working. My episode functions made use of it by first generating lists of \texttt{train} or \texttt{test} functions, partially applied to their configuration/control arguments, and then folding the Kleisli operator over the list, beginning with an initial board and Q Table pair.
+		\par It turned out that this was exactly the operator I needed to get my program working. My episode functions made use of it by first generating lists of \texttt{train} or \texttt{test} functions, partially applied to their configuration/control arguments, and then folding the Kleisli operator over the list, beginning with an initial board and Q Table pair. It was then easy to produce many episodes by repeating this process from a \texttt{doTraining} or \texttt{doTesting} wrapper function. 
+		\par This was the breakthrough I needed! Thanks to Professor Jones for helping me out with this one.
 		
 		\subsection{Instrumentation}
 		
-
+		\par An additional problem presented itself in the form of an instrumentation problem. How could I exflitrate the metrics that I needed to test and observe my algorithm? What I needed, at the very least, was the total reward content stored in the Q Table after each training episode, as well as the total reward obtained by the agent during each testing episode. The first metric would give me an idea of how well the algorithm was ``learning." By watching the total contents of the Q Table rise or fall, I could tell if the algorithm was making a good distribution of moves, and if its efficiency was improving over training episodes. The second metric would give me an idea of how well the \textit{trained} algorithm performed overall during testing.
+		\par The solution to this problem ended up being a matter of passing reward values through the test and train functions, and in turn the episode functions, along with the board and Q Table states. 
+		\par I am not totally satisfied with this solution, however, as it is very inflexible on account of being ``hard-coded" into the algorithm. It would be very tedious to add further instrumentation to collect metrics in this way.
+		\par What could be a better possible solution? Maybe it would involve writing to a file during each step? This seems like it would be far too slow. Maybe create a parameterized type to hold several different types of values, and include some accompanying function for filling the type? This seems the likely answer; although it would still require hand-coded adjustments when new instrumentation needed to be added, at least these changes would only need to take place in just one place. 
+		\par However, my worry with this solution would be the memory management requirements involved in building a new, complex parameterized type for each step. Could we simply introspect the functions as they execute from the outside, perhaps from a parallel thread? I still don't have a great answer to this question.
+		\par In the end, the instrumentation that made it into this project represents ``minimum viable product" in that it afforded me the bare minimum of metrics required to have a basic assessment of the algorithm, but provides very little in the way of convenience beyond that. 
 		
 			
 	\section{Testing \& Results}
 	
+		\subsection{Testing}
+		
+			\subsubsection{Correctness}
+			
+			\subsubsection{Performance}
+		
+		\subsection{Data Collected}
+		
+		\subsection{Interpretation of Data}
+		
+		\subsection{Analysis of Algorithm}
+	
 	\section{Reflections}
+	
+		\subsection{Major Challenges}
+		
+		\subsection{Haskell vs. Python}
+		
+		\subsection{Quality of Solution \& Improvements Over First Attempt}
 
 	\pagebreak
 	\begin{thebibliography}{9}
