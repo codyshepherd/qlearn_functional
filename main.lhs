@@ -33,15 +33,19 @@ but maybe that's not necessary?
 
 > main = do putStrLn ("Training...")
 >           (qfinal, rwds) <- doTraining (8,8) 0.5 1.0
->           putStrLn ("Training finished.\nResulting qmatrix:")
+>           putStrLn ("Training finished.")
 >           --print qfinal
 >           putStrLn ("Testing...")
 >           (q', rs) <- doTesting (8,8) 0.5 0.1 qfinal
->           putStrLn ("Testing finished.\nAverage rewards over episodes:")
+>           putStrLn ("Testing finished.")
 >           --print $ average rs
->           let epis = every 100 rwds
+>           let tot = foldr (+) 0.0 rs
+>               avg = tot / (fromIntegral $ length rs)
+>               epis = every 100 rwds
 >           toFile def "rewards_eps0_1.png" $ do
->               layout_title .= "Rewards over episodes"
+>               layout_title .= "Test Reward Avg" ++ (show avg)
+>               layout_x_axis . laxis_title .= "Episode (x 100)"
+>               layout_y_axis . laxis_title .= "Reward in Q Table"
 >               plot (line "eps=0.1" [zipInd epis])
 >               return ()
 

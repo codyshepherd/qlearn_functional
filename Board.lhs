@@ -117,7 +117,9 @@ by newlines:
 Then we will process the list of cans into their places on the "grid" and build a graphical
 representation of the grid for printing.
 
-> showBoard     :: Board -> IO()
+ showBoard     :: Board -> IO()
+
+> showBoard     :: Board -> IO ()
 > showBoard b     = do let r = (rfst (bthd b), rsnd (bthd b))
 >                          cs = map (\x -> if any (\y -> (cfst y == fst x) && (csnd y == snd x)) (bsnd b) && (r == x)
 >                                      then "[%]"
