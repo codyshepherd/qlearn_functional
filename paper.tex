@@ -332,11 +332,604 @@ for Unrecognizable Images.}
 		Silver, D., A. Huang, Aja, C. Maddison, A. Guez, L. Sifre, G. van den Driessche, J. Schrittwieser, I. Antonoglou, V. Panneershelvam, M. Lanctot, S. Dieleman, D. Grewe, J. Nham, N. Kalchbrenner, I. Sutskever, T. Lillicrap, M. Leach, K. Kavukcuoglu, T. Graepel, D. Hassabis. 2016. \textit{Mastering the Game of Go with Deep Neural Networks and Tree Search}. Nature 529 (28 Jan): 484--503.
 	\end{thebibliography}
 	
+	\pagebreak
 	\appendix
 	\section{Github}
 	
+	https://github.com/codyshepherd/qlearn\_functional
+	
 	\section{Code}
 	
+	\begin{lstlisting}[language=Haskell,numbers=none,basicstyle=\tiny]
+Board.lhs
+Cody Shepherd
+
+> module Board where
+> import Data.List
+> import Math.Geometry.Grid
+> import Math.Geometry.Grid.Square
+
+
+
+The Rob type is an instance of Rob's location on the board. We would like to 
+be able to compare this location to a pair of Ints later on, so we will provide a couple
+of conversion functions.
+
+> data Rob = Rob (Int, Int)
+>               deriving (Show, Eq)
+
+> rfst      :: Rob -> Int
+> rfst (Rob (a, b)) = a
+
+> rsnd      :: Rob -> Int
+> rsnd (Rob (a, b)) = b
+
+> rToPair   :: Rob -> (Int, Int)
+> rToPair (Rob a) = a
+
+
+
+The first thing Rob has to do is move around a board. 
+It seems like we don't need to store all the empty locations... we can just
+track where there are cans. A can, like Rob, is defined by its location.
+
+A location will be defined in its implementation as (a, b), where a represents the "row"
+or y-axis location, and b will represent the "column" or x-axis location. This is reversed
+from the format of cartesian coordinates because this version makes it much easier to 
+use in the context of lists of lists - a being the number of the outermost list, and b 
+being the offset within that list. 
+
+However, this format will behave as expected (as a cartesian pair) when visualized. I.e. specifying
+Rob's location at (0, 0) will put him at the bottom left corner of the grid, and moving him up will
+result in a location of (0, 1). This should turn out to not matter much in the actual execution of
+the q-learning algorithm, as it is primarily concerned with the "key" of each grid square rather 
+than its grid coordinates.
+
+We will specify the locations of Cans in much the same way.
+
+> data Can = Can (Int, Int)
+>            deriving (Show, Eq)
+
+> cfst       :: Can -> Int
+> cfst (Can (a, b)) = a
+
+> csnd          :: Can -> Int
+> csnd (Can (a, b)) = b
+
+> cToPair       :: Can -> (Int, Int)
+> cToPair (Can a) = a
+
+
+For the board, we will have to define limits, but otherwise we don't need to store 
+empty cells.
+
+We will define Board as a 3-tuple with its height and width limits, plus a list
+of cans and the location of Rob: ((MAXHEIGHT, MAXWIDTH), Cans, Rob)
+
+> data Board = Board ((Int, Int), [Can], Rob)
+>               deriving (Eq, Show)
+
+> bfst      :: Board -> (Int, Int)
+> bfst (Board (a, b, c)) = a
+
+> bsnd      :: Board -> [Can]
+> bsnd (Board (a, b, c)) = b
+
+> bthd      :: Board -> Rob
+> bthd (Board (a, b, c)) = c
+
+> top       :: Board -> Int
+> top (Board (a, b, c)) = (fst a) - 1
+
+> right     :: Board -> Int
+> right (Board (a, b, c)) = (snd a) - 1
+
+
+
+If Rob is going to move, we would like some way of constraining his possible movements
+to the cardinal directions. We'll define a direction in the order of "nsew", though it 
+doesn't make any difference as long as we are consistent throughout the program.
+
+> data Dir =  U
+>           | D
+>           | R
+>           | L
+>           | P
+>           deriving (Show, Eq, Enum, Ord)
+
+At some point we will need to convert a Dir (which represents an action) to an index for
+getting values out of the Q Table.
+
+> dirIndex  :: Dir -> Int
+> dirIndex d
+>           | d == U = 0
+>           | d == D = 1
+>           | d == R = 2
+>           | d == L = 3
+>           | d == P = 4
+
+We want a nice way to visualize the board.
+
+First we need to break up a list of "[ ]" cell tokens into a list of n cell tokens, delimited
+by newlines:
+
+> splitEvery :: Int -> [String] -> [String]
+> splitEvery _ [] = []
+> splitEvery n s = take n s ++ "\n" : splitEvery n ss
+>                   where ss = drop n s
+
+Then we will process the list of cans into their places on the "grid" and build a graphical
+representation of the grid for printing.
+
+> showBoard     :: Board -> IO ()
+> showBoard b     = do let r = (rfst (bthd b), rsnd (bthd b))
+>                          cs = map (\x -> if any (\y -> (cfst y == fst x) && (csnd y == snd x)) (bsnd b) && (r == x)
+>                                      then "[%]"
+>                                      else if any (\y -> (cfst y == fst x) && (csnd y == snd x)) (bsnd b) 
+>                                           then "[.]"
+>                                      else if r == x
+>                                           then "[o]" 
+>                                      else "[ ]") (indices (rectSquareGrid (fst (bfst b)) (snd (bfst b))))
+>                          ls = splitEvery (snd (bfst b)) cs
+>                          s = reverse (lines (concat ls))
+>                      r <- return s
+>                      mapM putStrLn r
+>                      putStrLn ""
+>                      return ()
+
+
+The very first thing we need to work out is movement around the board.
+A movement is an action performed on Rob - none of the other pieces move.
+Rob's movement does not affect any of the state on the board other than 
+Rob (with the exception of a pick-up movement).
+
+> moveRob      :: Rob -> Dir -> Rob
+> moveRob (Rob (x, y)) d  = case d of
+>                   U -> Rob (x+1, y)
+>                   D -> Rob (x-1, y)
+>                   R -> Rob (x, y+1)
+>                   L -> Rob (x, y-1)
+>                   P -> Rob (x, y)
+
+In the Q-Learning problem, a move is conflated with a reward. Every move returns some
+notion of a reward, even if the value of the reward is zero. 
+
+A move is also essentially a permutation on a board, so we will need to return the updated
+board as well.
+
+The robot is rewarded 10 points for picking up a can, and is penalized 1 point for attempting to
+pick up a can when none is present, and 5 points for running into a wall. 
+
+Note that here we must make sure that if the robot chooses to move into a wall, it "bounces back,"
+i.e. b' is identical to b for starting board b.
+
+> move          :: Dir -> Board -> (Board, Double)
+> move dir (Board (dims, cans, rob)) 
+>                                  | r' == r = case find (\c -> cToPair c == r) cans of
+>                                                   Just a -> (Board(dims, filter (\c -> cToPair c /= r) cans, rob), 10.0)
+>                                                   Nothing -> (Board(dims, cans, rob), -1.0)
+>                                  | otherwise = 
+>                                             if (fst r' > (fst dims) -1 )      ||
+>                                                   (fst r' < 0)                ||
+>                                                   (snd r' > (snd dims) -1)    ||
+>                                                   (snd r' < 0)        
+>                                               then (Board(dims, cans, rob), -5.0)
+>                                               else (Board(dims, cans, Rob r'), 0.0) 
+>  where
+>       r = rToPair rob
+>       r' = rToPair $ moveRob rob dir
+
+=============================
+	\end{lstlisting}
+	
+	\begin{lstlisting}[language=Haskell,numbers=none,basicstyle=\tiny]
+
+Learning.lhs
+Cody Shepherd
+
+> module Learning where
+
+> import System.Random
+> import Data.List
+> import Data.List.Extras.Argmax
+> import Data.List.Utils
+> import Data.Ord
+> import Board
+> import Data.Map (Map)
+> import qualified Data.Map as Map
+
+
+This will be the module that defines the learning algorithm - i.e. the math part.
+
+It will define the functions responsible for creating and updating the Q-Matrix
+
+First, we should define the Q-Matrix and specify how one stores, retrieves, and updates
+information contained within it.
+
+The state of a cell is going to be important in the Robot's learning algorithm. The robot needs
+to be able to observe the contents of its cell and neighboring cells in order to make a
+decision about the best course of action.
+
+Therefore we create named values for different configurations of a state.
+
+> data State    = E
+>               | C
+>               | W 
+>               | Rc
+>               | Re
+>               deriving (Eq, Show, Ord, Enum)
+
+We also are going to want a quick way to create a "hash" of a given state signature for being
+able to store information about a state configuration in the Qmatrix.
+
+> stateKey          :: [State] -> String
+> stateKey []       = []
+> stateKey (x:xs)   = let nx =  case x of
+>                                   E -> '_'
+>                                   C -> '.'
+>                                   W -> 'w'
+>                                   Rc -> '%'
+>                                   Re -> 'o'
+>                       in nx : stateKey xs
+
+Our Qmatrix is just a simple Mapping
+
+> type Qmatrix = Map String [Double]
+
+Now that we have a notion of a state and state key (a stateKey string plus a list of five Double values),
+we need a function that allows Rob to observe his current state.
+
+I have chosen to break this observe function into four separate functions to make it easier to manage
+and understand. Ultimately an "observation" results in a stateKey string representing the configuration
+of 5 cells that make up the robot's "footprint."
+
+> obsU        :: Board -> State
+> obsU (Board ((a, b), cs, r))
+>                            | fst rx == a-1 = W
+>                            | any (\x -> (cfst x == (fst rx)+1) && (csnd x == snd rx)) cs = C
+>                            | otherwise = E
+>                            where 
+>                               rx = rToPair r
+
+> obsD        :: Board -> State
+> obsD (Board ((a, b), cs, r))
+>                           | fst rx == 0 = W
+>                           | any (\x -> (cfst x == (fst rx)-1) && (csnd x == snd rx)) cs = C
+>                           | otherwise = E
+>                           where
+>                               rx = rToPair r
+
+> obsE          :: Board -> State 
+> obsE (Board ((a, b), cs, r))
+>                           | snd rx == b-1 = W
+>                           | any (\x -> (csnd x == (snd rx)+1) && (cfst x == fst rx)) cs = C
+>                           | otherwise = E
+>                           where
+>                               rx = rToPair r
+
+> obsW          :: Board -> State 
+> obsW (Board ((a, b), cs, r))
+>                           | snd rx == 0 = W
+>                           | any (\x -> (csnd x == (snd rx)-1) && (cfst x == fst rx)) cs = C
+>                           | otherwise = E
+>                           where
+>                               rx = rToPair r
+
+
+> obsH          :: Board -> State 
+> obsH (Board ((a, b), cs, r))
+>                           | any (\x -> (csnd x == snd rx) && (cfst x == fst rx)) cs = Rc
+>                           | otherwise = Re
+>                           where
+>                               rx = rToPair r
+
+> observe       :: Board -> String
+> observe b   = let  n = obsU b
+>                    s = obsD b
+>                    e = obsE b
+>                    w = obsW b
+>                    h = obsH b
+>                    in stateKey [n, s, e, w, h]
+
+Fundamentally, Q-Learning requires two parts: training and testing. These parts differ
+in that the q-matrix may be updated during training, but not during testing.
+
+Training 
+    - Initialize Q(s,a) to all zeros
+    - Initialize s
+    - selection action a
+    - take action a and receive reward r
+    - observe new state s'
+    - Update Q(s, a) <- Q(s,a) + eta * (r + gamma*argmax(Q(s',a')) - Q(s,a))
+    - s <- s'
+
+testStep
+    - The same steps as above except without updating the Q Table
+
+In service of either algorithm, the robot needs to be able to select an action 
+in a deterministic way, but also get a random action if it wants.
+
+> action :: Int -> IO Dir
+> action n =  case n `mod` 6 of
+>                0 -> return U
+>                1 -> return D
+>                2 -> return R
+>                3 -> return L
+>                4 -> return P
+>                5 -> do v <- randomRIO(0,4)
+>                        action v
+
+Sometimes this action selection should be random (e.g. when the robot has not learned enough,
+or when it wants to maximize exploration over exploitataion). The chances of randomness should be 
+based on a tunable value.
+
+> isRandom :: Double -> IO Bool
+> isRandom p = do v <- randomRIO(0.0, 1.0)
+>                 if v < p then return True else return False
+
+We also want a way to get an action we know or think is good. This requires looking at the Qmatrix
+and checking for any "learned knowledge" for the given stateKey state configuration.
+
+> maxI :: [Double] -> Int
+> maxI xs = let (f, i) = maximumBy (comparing fst) (zip xs [0..]) in i
+
+> bestAction :: String -> Qmatrix -> IO Dir
+> bestAction k q = do let l = Map.lookup k q
+>                     --print ("bestAction lookup: " ++ show l)
+>                     case l of
+>                            Just n -> action (maxI n)
+>                            Nothing -> action 5
+
+In order to perform a single step during training, we need to have the updated states of
+the Board and the Qtable; a single step potentially updates both, so it should return them,
+I suppose as a pair.
+
+
+We will need some global constants to control the behavior of our program and keep the number of
+copied parameters to a minimum.
+
+> eta = 0.2 :: Double
+> gamma = 0.9 :: Double
+
+Training is fundamentally an updating of the board position and the contents of the Qmatrix. Because it
+relies on randomness, it becomes an IO function. 
+
+> train         :: Double -> (Qmatrix, Board) -> IO (Qmatrix, Board)
+> train eps (q, b) = do         t <- isRandom eps
+>                               let s       = observe b
+>                               --showBoard b
+>                               a <- if t then action 5 else bestAction s q
+>                               --print a
+>                               let (s', r) = move a b
+>                                   q'      = updateQ q s (observe s') a r
+>                               --print ("reward " ++ show r)
+>                               --print ("stateKey: " ++ show s)
+>                               --print (Map.lookup s q')
+>                               return (q', s')
+
+The Qmatrix must be updated according to the Q-Learning algorithm. A more detailed explanation of this algorithm,
+and thus what is going on in this function, is provided in my paper. 
+
+> updateQ           :: Qmatrix -> String -> String -> Dir -> Double -> Qmatrix
+> updateQ q s s' a r   = let qcurrent = Map.lookup s q
+>                               in case qcurrent of
+>                                   Just sa -> let y = head $ drop (dirIndex a) sa
+>                                                  snext = Map.lookup s' q
+>                                                  qt = case snext of
+>                                                               Just z -> let newval = y + (eta * (r + (gamma * (maximum z)) - y))
+>                                                                           in take (dirIndex a) sa ++ [newval] ++ drop ((dirIndex a) + 1) sa
+>                                                               Nothing -> let newval = y + (eta * (r - y))
+>                                                                           in take (dirIndex a) sa ++ [newval] ++ drop ((dirIndex a) + 1) sa
+>                                                  in Map.insert s qt q
+>                                   Nothing -> let y = 0.0
+>                                                  snext = Map.lookup s' q
+>                                                  qt = case snext of
+>                                                               Just z -> let newval = y + (eta * (r + (gamma * (maximum z)) - y))
+>                                                                           in replicate (dirIndex a) 0.0 ++ [newval] ++ (drop ((dirIndex a) + 1) $ replicate 5 0.0)
+>                                                               Nothing -> let newval = eta * r
+>                                                                           in replicate (dirIndex a) 0.0 ++ [newval] ++ (drop ((dirIndex a) + 1) $ replicate 5 0.0)
+>                                                  in Map.insert s qt q
+
+We also need a quick way to generate the very first, zero-initialized Qmatrix, based on combinations over the
+possible stateKeys. Note that there are some states generated by this algorithm that will never occur, such as
+"wwwwo" (a cell surrounded by four walls), but the cost to memory and time is minimal, so we don't really care.
+
+> newQTable :: Map String [Double]
+> newQTable = let strings = [ [n] ++ [s] ++ [e] ++ [w] ++ [h] | n <- [E .. W], s <- [E .. W]
+>                                                   , e <- [E .. W ], w <- [E .. W], h <- [Rc .. Re]]
+>                 in Map.fromList $ map makePair $ map stateKey strings
+>                     where makePair x = (x, [0.0,0.0,0.0,0.0,0.0])
+
+A test step is fundamentally similar to a training step. Note the lack of a call to updateQ.
+
+> test          :: Double -> (Qmatrix, Board, Double) -> IO (Qmatrix, Board, Double)
+> test eps (q, b, r)   = do let s = observe b
+>                           --showBoard b
+>                           t <- isRandom eps
+>                           --print ("Is action random: " ++ show t)
+>                           a <- if t then action 5 else bestAction s q
+>                           let (s', r') = move a b
+>                           --print ("Action: " ++ show a)
+>                           --print r'
+>                           --throwaway <- getLine
+>                           return (q, s', r'+r)
+
+=============================
+	\end{lstlisting}
+
+	\begin{lstlisting}[language=Haskell,numbers=none,basicstyle=\tiny]
+Qlearn.lhs
+Cody Shepherd
+
+> module Qlearn where
+
+> import Learning
+> import Board
+> import Data.List
+> import Control.Monad
+> import System.Random
+> import Data.Map (Map)
+> import qualified Data.Map as Map
+
+The key piece in this project that eluded my during my last attempt was 
+being able to "loop" a given number of times, repeating a computation and
+accumulating and updated model.
+
+In the definition of this algorithm we define an episode of 200 training 
+steps during which the Qmatrix model is updated and accumulated; at the end
+of the episode the board is thrown out but the Qmatrix is kept for further
+training.
+
+The Kleisli composition operator is going to facilitate this for us.
+
+First we need some constants in order to keep function parameters minimal.
+Ultimately it would be nice to specify these at runtime from a terminal, but
+that's a project for another day.
+
+> n_steps = 200
+> n_episodes = 5000
+
+
+To facilitate the above function we need to be able to randomly generate a 
+starting board
+
+dims: dimensions of board (excluding wall border)
+p: % of cells with cans at start
+
+> randBoard         :: (Int, Int) -> Double -> IO Board
+> randBoard dims p  = do    let n = floor $ fromIntegral (fst dims) * fromIntegral (snd dims) * p
+>                           cs <- randCans dims n
+>                           r <- randRob dims
+>                           return (Board(dims, cs, r))
+
+dims: dimensions of board (excluding wall border)
+n: number of cans desired
+
+> randCans          :: (Int, Int) -> Int -> IO [Can]
+> randCans dims 0   = return []
+> randCans dims n   = do   i <- randomRIO(0, (fst dims)-1)
+>                          j <- randomRIO(0, (snd dims)-1)
+>                          let c = Can(i, j)
+>                          cs <- randCans dims (n-1)
+>                          return $ nub (c:cs)
+
+dims: dimensions of board (excluding wall border)
+
+> randRob           :: (Int, Int) -> IO Rob
+> randRob dims      = do    i <- randomRIO(0, (fst dims)-1)
+>                           j <- randomRIO(0, (snd dims)-1)
+>                           let r = Rob(i, j)
+>                           return r
+
+The episode function conducts a training episode. It uses the Kleisli
+operator to pass the results of each training step from one step to 
+the next, and come out at the end with the final accumulated result.
+
+dims: dimensions of board (excluding wall border)
+p: % of cells with cans at start
+n: number of steps in episode
+eps: epsilon value
+q: zero-initialized Qmatrix
+i: episode number
+r: The rewards list from the previous call to episode, to be extended
+
+> episode                         :: (Int, Int) -> Double -> Int -> Double -> (Qmatrix, Int, [Double]) -> IO (Qmatrix, Int, [Double])
+> episode dims p n eps (q, i, r)  = do  b <- randBoard dims p
+>                                       let eps' = if i `mod` 50 == 0 && eps > 0.1 then eps - 0.01 else eps
+>                                       (q', b') <- foldr1 (>=>) (replicate n (train eps')) (q,b)
+>                                       --print ("episode" ++ show i)
+>                                       let r' = sum $ map sum (Map.elems q')
+>                                       return (q', i+1, r':r)
+
+doTraining conducts the entire training phase by folding the Kleisli 
+operator over episodes.
+
+dims: dimensions of board (excluding wall border)
+p: % of cells with cans at start
+eps: initial epsilon value, to be annealed
+
+> doTraining            :: (Int, Int) -> Double -> Double -> IO (Qmatrix, [Double])
+> doTraining dims p eps = do    (qfinal, i, rs) <- foldr1 (>=>) (replicate n_episodes (episode dims p n_steps eps)) (newQTable,1, [0])
+>                               return (qfinal, reverse rs)
+
+
+With training conquered, our next task is to conduct testing, wherein the robot makes a 
+guess but does not update its Q matrix.
+
+These functions work in the same way as the training functions.
+
+dims: the board dimensions, as above 
+p: the percentage of cans on the board 
+n: the number of test episodes to run 
+eps: the epsilon value (remains constant during testing)
+q: the trained Q Table 
+r: The rewards list from the last call to testEpisode, to be extended
+
+> testEpisode                       :: (Int, Int) -> Double -> Int -> Double -> (Qmatrix, [Double]) -> IO (Qmatrix, [Double])
+> testEpisode dims p n eps (q, r)   = do    b <- randBoard dims p
+>                                           (q', b', r') <- foldr1 (>=>) (replicate n (test eps)) (q,b,0.0)
+>                                           --print ("testEpisode" ++ show i)
+>                                           return (q', (r':r))
+>                                           
+
+The parameters for this function are the same as above.
+
+> doTesting             :: (Int, Int) -> Double -> Double -> Qmatrix -> IO (Qmatrix, [Double])
+> doTesting dims p eps q  = do  (q', r) <- foldr1 (>=>) (replicate n_episodes (testEpisode dims p n_steps eps)) (q, [0.0])
+>                               return (q', reverse r)
+
+=============================
+	\end{lstlisting}
+
+	\begin{lstlisting}[language=Haskell,numbers=none,basicstyle=\tiny]
+> module Main(main) where
+> import Board
+> import Learning
+> import Qlearn
+> import qualified Data.Map as Map
+> import Data.List
+> import Graphics.Rendering.Chart.Easy
+> import Graphics.Rendering.Chart.Backend.Cairo
+
+
+What I'd like to do here is set up my initial board, set up my zero-initialized Qmatrix, 
+and then "iterate" train on those initial parameters, passing its results into the next
+computation, for some number of times. I.e. I would like to "accumulate" the results of
+each successive call to train.
+
+I've written a couple of helper functions here to assist with plotting the results of 
+the experiment as desired.
+
+> zipInd    :: [Double] -> [(Int, Double)]
+> zipInd rs = [0..] `zip` rs
+
+> average xs = realToFrac (sum xs) / genericLength xs
+
+> every n xs = case drop (n-1) xs of
+>               (y:ys) -> y : every n ys
+>               [] -> []
+
+> main = do putStrLn ("Training...")
+>           (qfinal, rwds) <- doTraining (8,8) 0.5 1.0
+>           putStrLn ("Training finished.")
+>           --print qfinal
+>           putStrLn ("Testing...")
+>           (q', rs) <- doTesting (8,8) 0.5 0.1 qfinal
+>           putStrLn ("Testing finished.")
+>           --print $ average rs
+>           let tot = foldr (+) 0.0 rs
+>               avg = tot / (fromIntegral $ length rs)
+>               epis = every 100 rwds
+>           toFile def "rewards_eps0_1.png" $ do
+>               layout_title .= "Test Reward Avg" ++ (show avg)
+>               layout_x_axis . laxis_title .= "Episode (x 100)"
+>               layout_y_axis . laxis_title .= "Reward in Q Table"
+>               plot (line "eps=0.1" [zipInd epis])
+>               return ()
+
+=============================
+	\end{lstlisting}
+
 	
             
             

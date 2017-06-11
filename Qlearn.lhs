@@ -1,3 +1,4 @@
+Qlearn.lhs
 Cody Shepherd
 
 > module Qlearn where
@@ -20,6 +21,10 @@ of the episode the board is thrown out but the Qmatrix is kept for further
 training.
 
 The Kleisli composition operator is going to facilitate this for us.
+
+First we need some constants in order to keep function parameters minimal.
+Ultimately it would be nice to specify these at runtime from a terminal, but
+that's a project for another day.
 
 > n_steps = 200
 > n_episodes = 5000
@@ -56,14 +61,17 @@ dims: dimensions of board (excluding wall border)
 >                           let r = Rob(i, j)
 >                           return r
 
+The episode function conducts a training episode. It uses the Kleisli
+operator to pass the results of each training step from one step to 
+the next, and come out at the end with the final accumulated result.
 
-i: which episode this is
 dims: dimensions of board (excluding wall border)
 p: % of cells with cans at start
 n: number of steps in episode
+eps: epsilon value
 q: zero-initialized Qmatrix
 i: episode number
-eps: initial epsilon
+r: The rewards list from the previous call to episode, to be extended
 
 > episode                         :: (Int, Int) -> Double -> Int -> Double -> (Qmatrix, Int, [Double]) -> IO (Qmatrix, Int, [Double])
 > episode dims p n eps (q, i, r)  = do  b <- randBoard dims p
@@ -73,6 +81,13 @@ eps: initial epsilon
 >                                       let r' = sum $ map sum (Map.elems q')
 >                                       return (q', i+1, r':r)
 
+doTraining conducts the entire training phase by folding the Kleisli 
+operator over episodes.
+
+dims: dimensions of board (excluding wall border)
+p: % of cells with cans at start
+eps: initial epsilon value, to be annealed
+
 > doTraining            :: (Int, Int) -> Double -> Double -> IO (Qmatrix, [Double])
 > doTraining dims p eps = do    (qfinal, i, rs) <- foldr1 (>=>) (replicate n_episodes (episode dims p n_steps eps)) (newQTable,1, [0])
 >                               return (qfinal, reverse rs)
@@ -81,7 +96,14 @@ eps: initial epsilon
 With training conquered, our next task is to conduct testing, wherein the robot makes a 
 guess but does not update its Q matrix.
 
-We will rely on the test function from Learning.lhs here.
+These functions work in the same way as the training functions.
+
+dims: the board dimensions, as above 
+p: the percentage of cans on the board 
+n: the number of test episodes to run 
+eps: the epsilon value (remains constant during testing)
+q: the trained Q Table 
+r: The rewards list from the last call to testEpisode, to be extended
 
 > testEpisode                       :: (Int, Int) -> Double -> Int -> Double -> (Qmatrix, [Double]) -> IO (Qmatrix, [Double])
 > testEpisode dims p n eps (q, r)   = do    b <- randBoard dims p
@@ -89,6 +111,8 @@ We will rely on the test function from Learning.lhs here.
 >                                           --print ("testEpisode" ++ show i)
 >                                           return (q', (r':r))
 >                                           
+
+The parameters for this function are the same as above.
 
 > doTesting             :: (Int, Int) -> Double -> Double -> Qmatrix -> IO (Qmatrix, [Double])
 > doTesting dims p eps q  = do  (q', r) <- foldr1 (>=>) (replicate n_episodes (testEpisode dims p n_steps eps)) (q, [0.0])
