@@ -303,7 +303,16 @@ Codys-MacBook:qlearn cody$
 		
 		\subsection{Haskell vs. Python}
 		
+		\par I don't believe that my ``performance comparison" between the two programs represents definitive proof that Haskell is faster than Python, at least any more than do the observations that the Haskell program was compiled, and the language is typesafe, whereas the Python program is interpreted, and Python performs lots of type conversions at runtime. 
+		\par To acquire a true ``apples to apples" comparison would require that the two programs be written in as close to the same way as possible, using the same abstractions and algorithms and design patterns. As this may not always be possible, care would be required when choosing language-specific alternatives. 
+		\par Furthermore, the execution environment would need to be more controlled. With a two-core processor running lots of other applications simultaneously, there could have been interference at the hardware or kernel level in the experiments I conducted. Granted, the times I observed are reproducible on my machine and do not show a lot of variance, but from a scientific standpoint the execution environment is still a variable that requires controls. 
+		\par The big takeaway from the comparison for me was an assurance that, even with all the linear-complexity list processing tasks such as folds, maps, filters, and finds, the Haskell program performs at least as well, in an asymptotic sense, as a program that utilizes O(1) array access and imperative-style side effects. I think that this kind of assurance is essential to have for any language one uses in practice, and being able to do this kind hands-on experimentation is a great way to reinforce that assurance.
+		
 		\subsection{Quality of Solution \& Improvements Over First Attempt}
+		
+		\par Is my solution the best possible implementation of the Q-Learning algorithm in Haskell? Almost certainly not. It seems likely that there is a more efficient way to represent the board and its pieces, such as perhaps a bitboard (where each grid square is represented by a bit, meaning the entire board can fit inside a single word or double-word). It might also be worth it to find or write a data structure for the Q Table whose lookup routine does not return a Maybe type that requires unpacking -- if we were to build such a data structure with assurances of complete state coverage, we would not need to handle the possibility of null returns. Probably the algorithm for observing the current state could be optimized to perform only a single pass over the cans list, rather than five separate passes for each relevant cell.
+		\par Additionally, to make such a program truly useful for thorough experimentation, it would be nice to have some kind of terminal for parameterizing, dispatching, and gathering data from experiments. Exploration of the algorithm becomes interesting when one starts to fiddle with the learning rate, the epsilon value, the different rewards for each move, and the number of steps and episodes executed. Changing all these parameters manually in the code base is obviously not the way to go, but building a terminal for this program would require further thinking about function parameters, possibly global values, and a major redesign with these types of adjustments in mind. 
+		\par Ultimately this program represents a major improvement over my first attempt. This might be obvious, because this program works and the other one did not. However, I think the major win here is that the newer program has been written with the functional paradigm in mind, and shows evidence (at least to me) of a more mature understanding of the particulars of Haskell and functional programming in general. My attempts in writing the first program to bring some imperative abstractions into the functional world were likely the true barriers to success in that endeavor. Writing this program successfully has provided a great example of how to adapt one's thinking, ``switch gears" so to speak, and consider the implementation of a computing problem from more than one angle. I find that I now have a new set of tools with which to consider a problem and build an appropriate solution. This feels like a major step in my development as a computer scientist.
 
 	\pagebreak
 	\begin{thebibliography}{9}
@@ -311,8 +320,6 @@ Codys-MacBook:qlearn cody$
 		Melanie  Mitchell.
 		\textit{Reinforcement Learning}.
 		http://web.cecs.pdx.edu/~mm/MachineLearningWinter2017/RL.pdf
-		\bibitem{alphago}
-		Silver, D., A. Huang, Aja, C. Maddison, A. Guez, L. Sifre, G. van den Driessche, J. Schrittwieser, I. Antonoglou, V. Panneershelvam, M. Lanctot, S. Dieleman, D. Grewe, J. Nham, N. Kalchbrenner, I. Sutskever, T. Lillicrap, M. Leach, K. Kavukcuoglu, T. Graepel, D. Hassabis. 2016. "Mastering the Game of Go with Deep Neural Networks and Tree Search". Nature 529 (28 Jan): 484--503.
 		\bibitem{kleisli}
 		Monad laws.
 		https://wiki.haskell.org/Monad\_laws
@@ -321,7 +328,14 @@ Codys-MacBook:qlearn cody$
 		\textit{Deep Neural Networks are Easily Fooled: High Confidence Predictions
 for Unrecognizable Images.}
 		In Computer Vision and Pattern Recognition (CVPR ?15), IEEE, 2015.
+		\bibitem{alphago}
+		Silver, D., A. Huang, Aja, C. Maddison, A. Guez, L. Sifre, G. van den Driessche, J. Schrittwieser, I. Antonoglou, V. Panneershelvam, M. Lanctot, S. Dieleman, D. Grewe, J. Nham, N. Kalchbrenner, I. Sutskever, T. Lillicrap, M. Leach, K. Kavukcuoglu, T. Graepel, D. Hassabis. 2016. \textit{Mastering the Game of Go with Deep Neural Networks and Tree Search}. Nature 529 (28 Jan): 484--503.
 	\end{thebibliography}
+	
+	\appendix
+	\section{Github}
+	
+	\section{Code}
 	
 	
             
