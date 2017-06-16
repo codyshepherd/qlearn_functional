@@ -218,12 +218,12 @@ A test step is fundamentally similar to a training step. Note the lack of a call
 
 > test          :: Double -> (Qmatrix, Board, Double) -> IO (Qmatrix, Board, Double)
 > test eps (q, b, r)   = do let s = observe b
->                           --showBoard b
+>                           showBoard b
 >                           t <- isRandom eps
 >                           --print ("Is action random: " ++ show t)
 >                           a <- if t then action 5 else bestAction s q
 >                           let (s', r') = move a b
->                           --print ("Action: " ++ show a)
->                           --print r'
->                           --throwaway <- getLine
+>                           print ("Action: " ++ show a)
+>                           print r'
+>                           throwaway <- getLine
 >                           return (q, s', r'+r)
